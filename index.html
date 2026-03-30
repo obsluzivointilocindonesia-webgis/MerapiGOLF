@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <title>TerraGOLF | 3D Golf Tracker</title>
+    </head>
+<head>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4CAF50">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.110/Build/Cesium/Cesium.js"></script>
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.110/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+<div id="pdf-report-hidden" style="display: none; width: 100%; background: white; padding: 20px;">
+    <h2 style="text-align: center; color: black; margin-bottom: 5px;">MERAPI GOLF SCORECARD</h2>
+    <p style="text-align: center; color: black; font-size: 12px;">Round ID: <span id="pdf-round-id"></span></p>
+    
+    <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd; color: black;">
+        <thead></thead>
+        <tbody id="table-body-detail-pdf"></tbody>
+    </table>
+</div>
+
+<div id="user-info-panel" style="position: fixed; top: calc(60px + env(safe-area-inset-top)); left: 15px; width: 180px; z-index: 1011; background: rgba(0,0,0,0.7); padding: 8px; border-radius: 8px; border-bottom: 1px solid #444; backdrop-filter: blur(5px); color: white;">
+    <div style="display: flex; justify-content: flex-start; align-items: center; gap: 6px; margin-bottom: 5px;">
+        <div style="flex-shrink: 1; min-width: 0;">
+            <small style="color: #aaa; font-size: 0.5rem; display: block; line-height: 1;">GOLFER</small>
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <strong id="display-user-name" style="color: #00ff88; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px;">User</strong>
+                <span id="user-status-badge" style="font-size: 0.45rem; padding: 1px 4px; border-radius: 4px; background: #555; text-transform: uppercase;"></span>
+            </div>
+        </div>
+        <button id="logoutBtn" style="background: none; border: 1px solid #ff4444; color: #ff4444; font-size: 0.55rem; padding: 2px 5px; border-radius: 4px; flex-shrink: 0; margin-left: auto;">Logout</button>
+    </div>
+    
+    <div style="border-top: 1px solid #444; padding-top: 5px;">
+        <div id="trial-info-text" class="trial-banner" style="font-size: 0.6rem; color: #ff4444; margin-bottom: 4px; font-weight: bold;"></div>
+        
+        <div style="display: flex; justify-content: flex-start; gap: 5px;">
+            <input type="text" id="roundIdInput" placeholder="ID" style="width: 75px; background: #222; border: 1px solid #444; color: white; font-size: 0.7rem; padding: 4px; border-radius: 4px;">
+            <button onclick="syncMultiplayer()" style="padding: 0 8px; background: #27ae60; color: white; border: none; font-size: 0.6rem; border-radius: 4px; cursor: pointer; height: 24px;">Sync</button>
+        </div>
+    </div>
+</div>
+
+    <div id="detail-scorecard-container" class="horizontal-panel">
+        <button class="close-btn" onclick="toggleElement('detail-scorecard-container')">✕</button>
+        <h4 style="color: #00ff88; margin: 0; font-size: 14px;">Group Leaderboard: <span id="active-round-display">-</span></h4>
+        
+        <div class="table-responsive" style="margin-top: 10px;">
+            <table id="multiplayer-scorecard-table" style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                <thead id="multi-thead">
+                    </thead>
+                <tbody id="multi-tbody">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+<div id="top-toolbar" style="position: fixed; top: 15px; left: 15px; display: flex; gap: 8px; z-index: 1010; align-items: center;">
+    
+    <button id="backToWebBtn" class="back-btn" style="margin: 0; position: static;">
+        ← Back
+    </button>
+
+    <button id="weatherBtn" class="top-tool-btn" onclick="getRealWeather()">
+    🌤️ <span class="btn-label">Weather</span>
+    </button>   
+
+    <button id="compassBtn" class="top-tool-btn" onclick="toggleCompass()">
+        <span id="compassIcon" style="display: inline-block; transition: transform 0.1s linear;">🧭</span>
+        <span id="directionText" class="btn-label">N</span>
+    </button>
+
+    <button id="aiCaddyBtn" class="top-tool-btn ai-pulse" onclick="runAiAdvisor()">
+    🤖 <span class="btn-label">AI Advisor</span>
+    </button>
+</div>
+
+
+<div id="auth-overlay" class="auth-box">
+    <div class="auth-container">
+        <h2 id="auth-title">Welcome to TerraGOLF<br> MERAPI GOLF</h2>
+        <p id="auth-subtitle">Please login to start.</p>
+        
+        <input type="email" id="auth-email" placeholder="Email Anda" class="auth-input">
+        <input type="password" id="auth-pass" placeholder="Password" class="auth-input">
+        
+        <div id="register-fields" style="display: none;">
+            <input type="text" id="auth-name" placeholder="Nama Lengkap" class="auth-input">
+        </div>
+
+        <button id="auth-primary-btn" class="auth-btn">Sign In</button>
+        <p class="auth-switch">Don't have an account? <span id="toggle-auth">Sign Up</span></p>
+    </div>
+</div>
+
+<div id="cesiumContainer"></div>
+<div id="chartContainer">
+    <div class="chart-wrapper">
+        <button class="close-btn" onclick="toggleElement('chartContainer')">✕</button>
+        <canvas id="profileChart"></canvas>
+    </div>
+</div>
+
+<div class="ui-overlay">
+    <div id="hole-selector-container"><br><br><br><br><br><br><br><br>
+            <select id="holeSelect" class="menu-button-ops">
+            <option value="">Hole #</option>
+            <option value="1">Hole 1: 401</option>
+            <option value="2">Hole 2: 504</option>
+            <option value="3">Hole 3: 366</option>
+            <option value="4">Hole 4: 153</option>
+            <option value="5">Hole 5: 471</option>
+            <option value="6">Hole 6: 422</option>
+            <option value="7">Hole 7: 410</option>
+            <option value="8">Hole 8: 164</option>
+            <option value="9">Hole 9: 389</option>
+            <option value="10">Hole 10: 351</option>
+            <option value="11">Hole 11: 193</option>
+            <option value="12">Hole 12: 358</option>
+            <option value="13">Hole 13: 513</option>
+            <option value="14">Hole 14: 376</option>
+            <option value="15">Hole 15: 396</option>
+            <option value="16">Hole 16: 151</option>
+            <option value="17">Hole 17: 514</option>
+            <option value="18">Hole 18: 356</option>
+            </select>
+    </div>
+    <div id="toolbar-info" class="toolbar-info">
+            <strong>Instruction:</strong><br>
+            <small>Type <strong>Group ID</strong>
+            and Click <strong>Sync!</strong><br>
+            Fill in the <strong>same GroupId</strong> (case sensitive)<br> 
+            for other players in the same group<br> 
+            The Group Score can be seen in <strong>Real Time</strong></small>
+    </div>
+
+    <button id="clearBtn" class="btn btn-navy">Clear ALL</button>
+    <button id="contourBtn" class="btn btn-dark">Contour: OFF</button>
+    <button id="undoBtn" class="menu-button" style="background-color: #9e4949;">Del Point</button>
+    <button id="saveTrackBtn" class="menu-button" style="background-color: #27ae60;">Save</button>
+    <button id="historyBtn" class="menu-button" style="background-color: #2980b9;">History</button>
+    <button id="deleteHistoryBtn" class="menu-button" style="background-color: #4a4f52;">Del Track</button>
+        
+    <div class="score-badge-container">
+    <strong>SCORE :</strong><br> 
+    <span id="current-score-text">2 Strokes (Albatross)</span><br>
+    
+        <div class="button-group">
+            <button id="toggleScorecardBtn" class="menu-button" style="background-color: #0d1b15;">Summary</button>
+            <button id="newGameBtn" class="menu-button" style="background-color: #0d1b15;">New Round</button>
+        </div>
+    </div>
+        
+    <div id="score-summary-container" class="summary-card">
+        <div>
+        <button class="close-btn" onclick="toggleElement('score-summary-container')">✕</button> </div>
+        <strong>Round Summary</strong><br>
+            <hr>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <span class="label">Total Strokes</span>
+                    <span id="total-strokes-val" class="value">0</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Total PAR</span>
+                    <span id="total-par-val" class="value">0</span>
+                </div>
+                <div class="summary-item">
+                    <span class="label">Holes Played</span>
+                    <span id="holes-played-val" class="value">0/18</span>
+                </div>
+            </div>
+        <div id="over-under-status" class="status-badge">Even</div>
+            
+        <div id="report-section" style="margin-top: 20px;">
+            <div class="button-group">
+                <button id="viewDetailBtn" class="btn-golf">Group</button>
+                <button id="exportPdfBtn" class="btn-golf" style="background: #27ae60;">PDF</button>
+            </div>
+        </div>
+        
+
+        <div id="history-modal" class="auth-box" style="display: none; z-index: 2000;">
+            <div class="auth-container" style="max-width: 400px; max-height: 80vh; overflow-y: auto;">
+                <button class="close-btn" onclick="toggleElement('history-modal')">✕</button>
+                <h3 style="color: #00ff88; margin-top: 0;">History Rounds</h3>
+                <p style="font-size: 0.8rem; color: #ccc;">Select a Round to Print</p>
+                <hr border "1" style="border-color: #444;">
+                
+                <div id="history-list-container" style="margin-top: 15px;">
+                    <p style="font-size: 0.8rem;">Loading history...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button id="focusGpsBtn" style="position:fixed; bottom:20px; right:20px; width:50px; height:50px; border-radius:50%; background: white; border: 2px solid #00ff88; cursor: pointer; z-index: 1000;">
+    📍
+
+</button>
+    <script src="main.js"></script>
+<script>
+    if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/pwabuilder-sw.js');
+    }
+</script>
+</body>
+</html>
